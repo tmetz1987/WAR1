@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPWATCH — Iran Conflict Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg-primary: #0a0c10;
+    --bg-secondary: #111318;
+    --bg-card: #151820;
+    --bg-card-hover: #1a1f2a;
+    --border: #1e2433;
+    --border-accent: #2a3148;
+    /* CONTRAST BOOSTED — all text colors raised ~25% */
+    --text-primary: #f0f1f5;
+    --text-secondary: #a8b0c2;
+    --text-muted: #7a84998;
+    --accent-red: #ef4444;
+    --accent-red-glow: rgba(239, 68, 68, 0.15);
+    --accent-orange: #f97316;
+    --accent-amber: #f59e0b;
+    --accent-green: #22c55e;
+    --accent-blue: #3b82f6;
+    --accent-cyan: #06b6d4;
+    --accent-purple: #8b5cf6;
+    --accent-red-dim: rgba(239, 68, 68, 0.08);
+    --accent-blue-dim: rgba(59, 130, 246, 0.08);
+    --radius: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-primary); }
+  ::-webkit-scrollbar-thumb { background: var(--border-accent); border-radius: 3px; }
+
+  /* Header */
+  .header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10, 12, 16, 0.88);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px; height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .logo {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700; font-size: 20px; letter-spacing: 3px;
+    color: var(--accent-red); text-transform: uppercase;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-dot {
+    width: 8px; height: 8px; background: var(--accent-red);
+    border-radius: 50%; animation: pulse-dot 2s ease-in-out infinite;
+    box-shadow: 0 0 10px var(--accent-red);
+  }
+  @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+  .header-tag {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; color: #8a93a8; text-transform: uppercase;
+    padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px;
+  }
+  .header-right { display: flex; align-items: center; gap: 20px; }
+  .live-clock {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    color: #a8b0c2; letter-spacing: 1px;
+  }
+  .live-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--accent-red);
+    padding: 5px 12px; border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 4px; background: var(--accent-red-dim);
+  }
+  .live-badge-dot { width:6px;height:6px;background:var(--accent-red);border-radius:50%;animation:pulse-dot 1.5s ease-in-out infinite; }
+
+  /* Alert Banner */
+  .alert-banner {
+    background: linear-gradient(90deg, rgba(239,68,68,0.08), rgba(249,115,22,0.05), rgba(239,68,68,0.08));
+    border-bottom: 1px solid rgba(239,68,68,0.15);
+    padding: 10px 32px; display: flex; align-items: center; gap: 12px; overflow: hidden;
+  }
+  .alert-banner-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--accent-red);
+    white-space: nowrap; padding: 3px 8px;
+    background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); border-radius: 3px;
+  }
+  .ticker-wrap { overflow: hidden; flex: 1; }
+  .ticker { display: flex; gap: 48px; animation: ticker-scroll 90s linear infinite; white-space: nowrap; }
+  @keyframes ticker-scroll { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+  .ticker-item { font-size: 13px; color: #b0b8ca; display: flex; align-items: center; gap: 8px; }
+  .ticker-time { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #8a93a8; }
+
+  /* Main */
+  .main-container { max-width: 1600px; margin: 0 auto; padding: 24px 32px 64px; }
+  .dashboard-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; transition: border-color 0.3s;
+    opacity: 0; transform: translateY(12px); animation: card-appear 0.5s ease-out forwards;
+  }
+  .card:hover { border-color: var(--border-accent); }
+  @keyframes card-appear { to{opacity:1;transform:translateY(0)} }
+  .card:nth-child(1){animation-delay:0.05s} .card:nth-child(2){animation-delay:0.1s}
+  .card:nth-child(3){animation-delay:0.15s} .card:nth-child(4){animation-delay:0.2s}
+  .card:nth-child(5){animation-delay:0.25s} .card:nth-child(6){animation-delay:0.3s}
+  .card:nth-child(7){animation-delay:0.35s} .card:nth-child(8){animation-delay:0.4s}
+  .card:nth-child(9){animation-delay:0.45s} .card:nth-child(10){animation-delay:0.5s}
+  .card:nth-child(11){animation-delay:0.55s} .card:nth-child(12){animation-delay:0.6s}
+
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+  }
+  .card-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase; color: #8a93a8;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-status {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 1px; padding: 3px 8px; border-radius: 3px;
+  }
+  .status-active { color:var(--accent-green);background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2); }
+  .status-elevated { color:var(--accent-orange);background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.2); }
+  .status-critical { color:var(--accent-red);background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2); }
+  .card-body { padding: 18px; }
+
+  /* Spans */
+  .span-3{grid-column:span 3} .span-4{grid-column:span 4} .span-5{grid-column:span 5}
+  .span-6{grid-column:span 6} .span-7{grid-column:span 7} .span-8{grid-column:span 8}
+  .span-12{grid-column:span 12}
+
+  /* Threat Meter */
+  .threat-meter-container { display:flex;flex-direction:column;gap:20px; }
+  .threat-meter-label { font-size:11px;font-family:'JetBrains Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#8a93a8;margin-bottom:10px; }
+  .meter-bar { height:32px;border-radius:6px;background:var(--bg-secondary);position:relative;overflow:hidden;border:1px solid var(--border); }
+  .meter-fill { height:100%;border-radius:5px;transition:width 1.5s cubic-bezier(0.4,0,0.2,1);position:relative; }
+  .meter-fill::after { content:'';position:absolute;right:0;top:0;bottom:0;width:2px;background:white;opacity:0.6;box-shadow:0 0 8px rgba(255,255,255,0.5); }
+  .meter-fill.critical { background:linear-gradient(90deg,#dc2626,#ef4444,#f97316);box-shadow:inset 0 1px 0 rgba(255,255,255,0.1); }
+  .meter-fill.elevated { background:linear-gradient(90deg,#f97316,#f59e0b);box-shadow:inset 0 1px 0 rgba(255,255,255,0.1); }
+  .meter-value { position:absolute;right:12px;top:50%;transform:translateY(-50%);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:white;text-shadow:0 1px 3px rgba(0,0,0,0.5); }
+  .meter-labels { display:flex;justify-content:space-between;margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#8a93a8; }
+  .threat-level-text { font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;margin-top:4px; }
+  .threat-level-text.critical{color:var(--accent-red)} .threat-level-text.elevated{color:var(--accent-orange)}
+
+  /* Attack status */
+  .attack-status { display:flex;flex-direction:column;align-items:center;gap:12px;padding:10px 0; }
+  .attack-status-ring {
+    width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  }
+  .attack-status-ring.active { background:radial-gradient(circle,rgba(239,68,68,0.15),transparent 70%);border:2px solid rgba(239,68,68,0.5);animation:pulse-ring 2s ease-in-out infinite; }
+  @keyframes pulse-ring { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.3)} 50%{box-shadow:0 0 0 12px rgba(239,68,68,0)} }
+  .attack-status-text { font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:600; }
+  .attack-status-text.active{color:var(--accent-red)}
+
+  /* Stats Row */
+  .stats-row { display:grid;grid-template-columns:repeat(4,1fr);gap:12px; }
+  .stat-box { background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center; }
+  .stat-box-value { font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--text-primary); }
+  .stat-box-label { font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#8a93a8;margin-top:6px; }
+  .stat-box-change { font-family:'JetBrains Mono',monospace;font-size:10px;margin-top:4px; }
+  .stat-up{color:var(--accent-red)} .stat-down{color:var(--accent-green)}
+
+  /* Casualty */
+  .casualty-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:12px; }
+  .casualty-item { background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center; }
+  .casualty-number { font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700; }
+  .casualty-type { font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#8a93a8;margin-top:6px; }
+  .casualty-note { font-size:12px;color:#a8b0c2;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);line-height:1.5; }
+
+  /* Map */
+  .map-container { position:relative;width:100%;height:340px;background:var(--bg-secondary);border-radius:6px;overflow:hidden; }
+  .map-svg { width:100%;height:100%; }
+  .map-overlay { position:absolute;bottom:12px;left:12px;display:flex;gap:14px; }
+  .map-legend-item { display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#8a93a8; }
+  .map-legend-dot { width:8px;height:8px;border-radius:50%; }
+  .map-point { animation:blink-point 3s ease-in-out infinite; }
+  @keyframes blink-point { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .map-point-ring { animation:expand-ring 3s ease-out infinite; }
+  @keyframes expand-ring { 0%{r:4;opacity:0.6} 100%{r:14;opacity:0} }
+
+  /* Tracking */
+  .tracking-list { display:flex;flex-direction:column;gap:8px;max-height:380px;overflow-y:auto; }
+  .tracking-item {
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 14px;background:var(--bg-secondary);border-radius:6px;
+    border:1px solid var(--border);transition:background 0.2s;
+  }
+  .tracking-item:hover{background:var(--bg-card-hover)}
+  .tracking-item-left{display:flex;align-items:center;gap:12px}
+  .tracking-icon { width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px; }
+  .tracking-icon.ship{background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2)}
+  .tracking-icon.aircraft{background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.2)}
+  .tracking-icon.vip{background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.2)}
+  .tracking-name{font-size:13px;font-weight:500;color:var(--text-primary)}
+  .tracking-detail{font-family:'JetBrains Mono',monospace;font-size:10px;color:#8a93a8;letter-spacing:0.5px}
+  .tracking-item-right{text-align:right}
+  .tracking-location{font-family:'JetBrains Mono',monospace;font-size:11px;color:#a8b0c2}
+  .tracking-coords{font-family:'JetBrains Mono',monospace;font-size:9px;color:#8a93a8;margin-top:2px}
+
+  /* News */
+  .news-feed { display:flex;flex-direction:column;gap:2px;max-height:440px;overflow-y:auto; }
+  .news-item { padding:12px 14px;border-left:2px solid transparent;transition:all 0.2s;cursor:pointer; }
+  .news-item:hover{background:var(--bg-secondary);border-left-color:var(--accent-blue)}
+  .news-item.breaking{border-left-color:var(--accent-red)}
+  .news-item-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .news-source{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--accent-blue)}
+  .news-time{font-family:'JetBrains Mono',monospace;font-size:9px;color:#8a93a8}
+  .news-breaking-tag{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent-red);padding:2px 6px;border:1px solid rgba(239,68,68,0.3);border-radius:2px;background:var(--accent-red-dim)}
+  .news-headline{font-size:13px;color:var(--text-primary);line-height:1.45}
+  .news-snippet{font-size:12px;color:#a8b0c2;line-height:1.4;margin-top:4px}
+
+  /* Charts */
+  .chart-container { position:relative;width:100%;height:200px; }
+  .chart-container.tall{height:260px}
+
+  /* Pie */
+  .pie-row{display:flex;gap:24px;align-items:center}
+  .pie-chart-wrap{width:140px;height:140px;flex-shrink:0}
+  .pie-legend{display:flex;flex-direction:column;gap:8px;flex:1}
+  .pie-legend-item{display:flex;align-items:center;gap:8px;font-size:12px;color:#a8b0c2}
+  .pie-legend-color{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+  .pie-legend-pct{font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a93a8;margin-left:auto}
+
+  /* Pct bars */
+  .pct-list{display:flex;flex-direction:column;gap:14px}
+  .pct-item-header{display:flex;justify-content:space-between;margin-bottom:6px}
+  .pct-item-label{font-size:12px;color:#a8b0c2}
+  .pct-item-value{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-primary)}
+  .pct-bar{height:6px;border-radius:3px;background:var(--bg-secondary);overflow:hidden}
+  .pct-bar-fill{height:100%;border-radius:3px;transition:width 1.5s cubic-bezier(0.4,0,0.2,1)}
+
+  /* Section divider */
+  .section-divider{grid-column:span 12;display:flex;align-items:center;gap:12px;padding:8px 0}
+  .section-divider-line{flex:1;height:1px;background:var(--border)}
+  .section-divider-text{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#8a93a8;white-space:nowrap}
+
+  /* Source bar */
+  .source-bar {
+    background:var(--bg-secondary);border-top:1px solid var(--border);
+    padding:10px 32px;text-align:center;
+    font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:#8a93a8;
+  }
+  .source-bar a{color:var(--accent-blue);text-decoration:none}
+
+  /* Responsive */
+  @media(max-width:1200px){.span-4,.span-3{grid-column:span 6}.span-8{grid-column:span 12}.span-5,.span-7{grid-column:span 12}}
+  @media(max-width:768px){.header{padding:0 16px}.main-container{padding:16px}.dashboard-grid{gap:12px}.span-4,.span-3,.span-6{grid-column:span 12}.stats-row{grid-template-columns:repeat(2,1fr)}.casualty-grid{grid-template-columns:1fr}.pie-row{flex-direction:column}}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <div class="logo"><span class="logo-dot"></span>OPWATCH</div>
+    <span class="header-tag">Operation Epic Fury — Iran Conflict Monitor</span>
+  </div>
+  <div class="header-right">
+    <span class="live-clock" id="clock"></span>
+    <span class="live-badge"><span class="live-badge-dot"></span>Live</span>
+  </div>
+</header>
+
+<div class="alert-banner">
+  <span class="alert-banner-label">⚠ Alert Feed</span>
+  <div class="ticker-wrap"><div class="ticker" id="ticker"></div></div>
+</div>
+
+<div class="source-bar">
+  Data sourced from CENTCOM, Reuters, AP, Al Jazeera, NPR, CNN, Washington Post, Military Times, CSIS, Wikipedia. Last verified: March 1, 2026.
+</div>
+
+<div class="main-container">
+  <div class="dashboard-grid">
+
+    <!-- ROW 1: Threat + Attack + Casualties -->
+    <div class="card span-4">
+      <div class="card-header">
+        <span class="card-title">🛡 Homeland Threat Level</span>
+        <span class="card-status status-critical">HIGH</span>
+      </div>
+      <div class="card-body">
+        <div class="threat-meter-container">
+          <div>
+            <div class="threat-level-text critical">HIGH</div>
+            <div style="font-size:12px;color:#a8b0c2;margin-top:6px;">Active military operations against Iran. Iranian retaliatory strikes hitting U.S. bases in Kuwait, Bahrain, UAE. State Dept Level 4 advisory issued for region.</div>
+          </div>
+          <div>
+            <div class="threat-meter-label">Threat Assessment</div>
+            <div class="meter-bar">
+              <div class="meter-fill critical" style="width:85%"><span class="meter-value">85%</span></div>
+            </div>
+            <div class="meter-labels"><span>Low</span><span>Guarded</span><span>Elevated</span><span>High</span><span>Severe</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card span-4">
+      <div class="card-header">
+        <span class="card-title">💥 Active Operations Meter</span>
+        <span class="card-status status-critical">ACTIVE COMBAT</span>
+      </div>
+      <div class="card-body">
+        <div class="attack-status">
+          <div class="attack-status-ring active">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+            </svg>
+          </div>
+          <div class="attack-status-text active">OPERATION EPIC FURY — ACTIVE</div>
+          <div style="font-size:12px;color:#a8b0c2;text-align:center;line-height:1.5;">
+            U.S.-Israeli joint strikes on Iran began Feb 28, 2026. CENTCOM confirms 1,000+ targets struck in 48 hours. B-2 bombers deploying 2,000-lb munitions on ballistic missile facilities. Israeli Air Force dropped 1,200+ munitions across 24 of 31 Iranian provinces. Iran retaliating with missile & drone strikes on 27 U.S. bases across Middle East.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card span-4">
+      <div class="card-header">
+        <span class="card-title">🇺🇸 U.S. Casualty Report</span>
+        <span class="card-status status-critical">CONFIRMED</span>
+      </div>
+      <div class="card-body">
+        <div class="casualty-grid">
+          <div class="casualty-item">
+            <div class="casualty-number" style="color:var(--text-primary)">8+</div>
+            <div class="casualty-type">Total Casualties</div>
+          </div>
+          <div class="casualty-item">
+            <div class="casualty-number" style="color:var(--accent-red)">3</div>
+            <div class="casualty-type">KIA (Confirmed)</div>
+          </div>
+          <div class="casualty-item">
+            <div class="casualty-number" style="color:var(--accent-amber)">5+</div>
+            <div class="casualty-type">Seriously Wounded</div>
+          </div>
+        </div>
+        <div class="casualty-note">
+          <strong>Source: U.S. Central Command, March 1.</strong> Three service members KIA by Iranian strikes on a base in Kuwait. Five seriously wounded. Several others sustained minor shrapnel injuries and concussions, returned to duty. Trump warned "there will likely be more." Identities withheld pending next-of-kin notification.
+        </div>
+      </div>
+    </div>
+
+    <!-- Threat Level Weekly History - full width row below the 3 cards -->
+    <div class="card span-12" style="animation-delay:0.08s">
+      <div class="card-header">
+        <span class="card-title">📅 Homeland Threat Level — Weekly History (Mon–Sun)</span>
+      </div>
+      <div class="card-body">
+        <div class="chart-container" style="height:200px;"><canvas id="chart-threat-weekly"></canvas></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.5px;color:#22c55e;padding:2px 6px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:3px;">LOW 0-20</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.5px;color:#3b82f6;padding:2px 6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);border-radius:3px;">GUARDED 21-40</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.5px;color:#f59e0b;padding:2px 6px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);border-radius:3px;">ELEVATED 41-60</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.5px;color:#f97316;padding:2px 6px;background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.2);border-radius:3px;">HIGH 61-80</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.5px;color:#ef4444;padding:2px 6px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:3px;">SEVERE 81-100</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section -->
+    <div class="section-divider">
+      <div class="section-divider-line"></div>
+      <span class="section-divider-text">Operational Overview</span>
+      <div class="section-divider-line"></div>
+    </div>
+
+    <!-- Key Stats -->
+    <div class="card span-12">
+      <div class="card-header">
+        <span class="card-title">📊 Key Metrics — Operation Epic Fury (48hr)</span>
+      </div>
+      <div class="card-body">
+        <div class="stats-row">
+          <div class="stat-box">
+            <div class="stat-box-value">1,000+</div>
+            <div class="stat-box-label">Targets Struck by U.S.</div>
+            <div class="stat-box-change stat-up">Per CENTCOM Mar 1</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-value">1,200+</div>
+            <div class="stat-box-label">Israeli Munitions Dropped</div>
+            <div class="stat-box-change stat-up">Across 24 of 31 provinces</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-value">27</div>
+            <div class="stat-box-label">U.S. Bases Targeted by Iran</div>
+            <div class="stat-box-change stat-up">Per IRGC statement</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-value">16+</div>
+            <div class="stat-box-label">U.S. Warships Deployed</div>
+            <div class="stat-box-change" style="color:#8a93a8">2 carrier strike groups</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map + Tracking -->
+    <div class="card span-7">
+      <div class="card-header">
+        <span class="card-title">🗺 Theater Operations Map</span>
+        <span class="card-status status-critical">ACTIVE COMBAT</span>
+      </div>
+      <div class="card-body" style="padding:12px;">
+        <div class="map-container">
+          <svg class="map-svg" viewBox="0 0 700 340">
+            <defs>
+              <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(30,36,51,0.5)" stroke-width="0.5"/>
+              </pattern>
+              <radialGradient id="gr"><stop offset="0%" stop-color="rgba(239,68,68,0.3)"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+              <radialGradient id="gb"><stop offset="0%" stop-color="rgba(59,130,246,0.3)"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+              <radialGradient id="gc"><stop offset="0%" stop-color="rgba(6,182,212,0.3)"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+            </defs>
+            <rect width="700" height="340" fill="var(--bg-secondary)"/>
+            <rect width="700" height="340" fill="url(#grid)"/>
+
+            <!-- Iran -->
+            <path d="M320,80 L380,70 L430,90 L460,120 L450,160 L440,200 L400,220 L360,210 L330,190 L300,160 L290,120 Z" fill="rgba(239,68,68,0.08)" stroke="rgba(239,68,68,0.35)" stroke-width="1.5"/>
+            <text x="370" y="150" fill="rgba(239,68,68,0.6)" font-family="JetBrains Mono" font-size="11" text-anchor="middle" letter-spacing="3">IRAN</text>
+
+            <!-- Strike cities -->
+            <!-- Tehran -->
+            <circle cx="370" cy="108" r="28" fill="url(#gr)" class="map-point"/>
+            <circle cx="370" cy="108" r="5" fill="#ef4444" class="map-point"/>
+            <circle cx="370" cy="108" r="5" fill="none" stroke="#ef4444" stroke-width="1" class="map-point-ring"/>
+            <text x="370" y="97" fill="rgba(255,180,180,0.9)" font-family="JetBrains Mono" font-size="7" text-anchor="middle">TEHRAN</text>
+
+            <!-- Isfahan -->
+            <circle cx="395" cy="155" r="20" fill="url(#gr)"/>
+            <circle cx="395" cy="155" r="4" fill="#ef4444" class="map-point" style="animation-delay:0.5s"/>
+            <text x="395" y="147" fill="rgba(255,180,180,0.7)" font-family="JetBrains Mono" font-size="6" text-anchor="middle">ISFAHAN</text>
+
+            <!-- Bushehr -->
+            <circle cx="380" cy="195" r="15" fill="url(#gr)"/>
+            <circle cx="380" cy="195" r="3" fill="#ef4444" class="map-point" style="animation-delay:1s"/>
+            <text x="380" y="188" fill="rgba(255,180,180,0.7)" font-family="JetBrains Mono" font-size="6" text-anchor="middle">BUSHEHR</text>
+
+            <!-- Kermanshah -->
+            <circle cx="318" cy="120" r="15" fill="url(#gr)"/>
+            <circle cx="318" cy="120" r="3" fill="#ef4444" class="map-point" style="animation-delay:0.3s"/>
+
+            <!-- Qom -->
+            <circle cx="362" cy="125" r="12" fill="url(#gr)"/>
+            <circle cx="362" cy="125" r="3" fill="#ef4444" class="map-point" style="animation-delay:0.8s"/>
+
+            <!-- Iraq -->
+            <path d="M240,100 L290,90 L300,160 L280,190 L240,200 L220,170 L230,130 Z" fill="rgba(59,130,246,0.04)" stroke="rgba(59,130,246,0.25)" stroke-width="1"/>
+            <text x="260" y="150" fill="rgba(130,170,255,0.5)" font-family="JetBrains Mono" font-size="9" text-anchor="middle" letter-spacing="2">IRAQ</text>
+
+            <!-- Saudi Arabia -->
+            <path d="M240,200 L280,190 L360,210 L380,250 L340,290 L280,300 L230,270 L220,230 Z" fill="rgba(245,158,11,0.03)" stroke="rgba(245,158,11,0.2)" stroke-width="1"/>
+            <text x="300" y="260" fill="rgba(245,200,100,0.4)" font-family="JetBrains Mono" font-size="9" text-anchor="middle">SAUDI ARABIA</text>
+
+            <!-- Persian Gulf -->
+            <path d="M360,210 L400,220 L430,230 L420,250 L380,250 Z" fill="rgba(6,182,212,0.06)" stroke="rgba(6,182,212,0.2)" stroke-width="1"/>
+            <text x="400" y="238" fill="rgba(100,220,240,0.5)" font-family="JetBrains Mono" font-size="7" text-anchor="middle">PERSIAN GULF</text>
+
+            <!-- Bahrain (Iran strike target) -->
+            <circle cx="410" cy="228" r="10" fill="url(#gr)"/>
+            <circle cx="410" cy="228" r="3" fill="#f97316" class="map-point" style="animation-delay:0.6s"/>
+            <text x="410" y="222" fill="rgba(249,180,100,0.7)" font-family="JetBrains Mono" font-size="5" text-anchor="middle">BAHRAIN</text>
+
+            <!-- Kuwait (where US troops KIA) -->
+            <circle cx="295" cy="195" r="12" fill="url(#gr)"/>
+            <circle cx="295" cy="195" r="3" fill="#f97316" class="map-point" style="animation-delay:0.4s"/>
+            <text x="295" y="188" fill="rgba(249,180,100,0.7)" font-family="JetBrains Mono" font-size="5" text-anchor="middle">KUWAIT</text>
+
+            <!-- UAE -->
+            <path d="M420,250 L460,240 L470,260 L440,270 Z" fill="rgba(139,92,246,0.03)" stroke="rgba(139,92,246,0.2)" stroke-width="1"/>
+            <text x="448" y="258" fill="rgba(180,160,255,0.5)" font-family="JetBrains Mono" font-size="7" text-anchor="middle">UAE</text>
+
+            <!-- Dubai (attacked) -->
+            <circle cx="455" cy="250" r="10" fill="url(#gr)"/>
+            <circle cx="455" cy="250" r="3" fill="#f97316" class="map-point" style="animation-delay:1.1s"/>
+
+            <!-- Strait of Hormuz -->
+            <text x="455" y="232" fill="rgba(100,220,240,0.45)" font-family="JetBrains Mono" font-size="6" text-anchor="middle" letter-spacing="1">HORMUZ</text>
+
+            <!-- Turkey -->
+            <path d="M180,50 L280,40 L320,60 L320,80 L290,90 L240,100 L200,80 Z" fill="rgba(245,158,11,0.03)" stroke="rgba(245,158,11,0.15)" stroke-width="1"/>
+            <text x="250" y="72" fill="rgba(245,200,100,0.4)" font-family="JetBrains Mono" font-size="9" text-anchor="middle">TURKEY</text>
+
+            <!-- Israel -->
+            <circle cx="195" cy="155" r="12" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+            <text x="195" y="158" fill="rgba(255,255,255,0.5)" font-family="JetBrains Mono" font-size="6" text-anchor="middle">ISRAEL</text>
+            <circle cx="195" cy="155" r="3" fill="#f97316" class="map-point" style="animation-delay:0.9s"/>
+
+            <!-- Naval: USS Abraham Lincoln — Arabian Sea -->
+            <circle cx="500" cy="270" r="20" fill="url(#gc)"/>
+            <circle cx="500" cy="270" r="5" fill="#06b6d4" class="map-point" style="animation-delay:0.7s"/>
+            <text x="500" y="285" fill="rgba(100,220,240,0.7)" font-family="JetBrains Mono" font-size="5" text-anchor="middle">USS LINCOLN CSG</text>
+
+            <!-- Naval: USS Gerald R. Ford — E Mediterranean / off Israel -->
+            <circle cx="160" cy="120" r="18" fill="url(#gc)"/>
+            <circle cx="160" cy="120" r="5" fill="#06b6d4" class="map-point" style="animation-delay:1.2s"/>
+            <text x="160" y="135" fill="rgba(100,220,240,0.7)" font-family="JetBrains Mono" font-size="5" text-anchor="middle">USS FORD CSG</text>
+
+            <!-- Air: Jordan (Muwaffaq Salti) -->
+            <circle cx="225" cy="165" r="12" fill="url(#gb)"/>
+            <circle cx="225" cy="165" r="3" fill="#3b82f6" class="map-point" style="animation-delay:0.3s"/>
+            <text x="225" y="178" fill="rgba(130,170,255,0.7)" font-family="JetBrains Mono" font-size="5" text-anchor="middle">F-15E JORDAN</text>
+
+            <!-- Air: F-22 at Ovda Israel -->
+            <circle cx="200" cy="175" r="10" fill="url(#gb)"/>
+            <circle cx="200" cy="175" r="3" fill="#3b82f6" class="map-point" style="animation-delay:0.5s"/>
+            <text x="200" y="185" fill="rgba(130,170,255,0.7)" font-family="JetBrains Mono" font-size="5" text-anchor="middle">F-22 OVDA</text>
+
+            <!-- Erbil -->
+            <circle cx="280" cy="105" r="8" fill="url(#gr)"/>
+            <circle cx="280" cy="105" r="2" fill="#f97316" class="map-point" style="animation-delay:0.7s"/>
+            <text x="280" y="99" fill="rgba(249,180,100,0.7)" font-family="JetBrains Mono" font-size="5" text-anchor="middle">ERBIL</text>
+
+            <!-- Flight paths -->
+            <path d="M160,120 Q190,140 225,165" fill="none" stroke="rgba(59,130,246,0.2)" stroke-width="1" stroke-dasharray="4,4"/>
+            <path d="M225,165 Q280,130 370,108" fill="none" stroke="rgba(239,68,68,0.15)" stroke-width="1" stroke-dasharray="3,3"/>
+            <path d="M500,270 Q450,240 395,155" fill="none" stroke="rgba(6,182,212,0.15)" stroke-width="1" stroke-dasharray="3,3"/>
+          </svg>
+          <div class="map-overlay">
+            <div class="map-legend-item"><div class="map-legend-dot" style="background:#ef4444"></div>U.S./Israel Strike</div>
+            <div class="map-legend-item"><div class="map-legend-dot" style="background:#f97316"></div>Iran Retaliation</div>
+            <div class="map-legend-item"><div class="map-legend-dot" style="background:#3b82f6"></div>U.S. Air Assets</div>
+            <div class="map-legend-item"><div class="map-legend-dot" style="background:#06b6d4"></div>U.S. Navy</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card span-5">
+      <div class="card-header">
+        <span class="card-title">✈ Asset Tracking — Ships & Aircraft</span>
+        <span class="card-status status-active">CONFIRMED DEPLOYED</span>
+      </div>
+      <div class="card-body">
+        <div class="tracking-list" id="tracking-list"></div>
+      </div>
+    </div>
+
+    <!-- Asset Deployment Map — own full-width card -->
+    <div class="card span-12">
+      <div class="card-header">
+        <span class="card-title">📍 U.S. Asset Deployment Positions</span>
+        <span class="card-status status-active">CONFIRMED</span>
+      </div>
+      <div class="card-body" style="padding:14px;">
+        <div style="position:relative;width:100%;height:300px;background:var(--bg-secondary);border-radius:6px;overflow:hidden;border:1px solid var(--border);">
+          <svg viewBox="0 0 800 300" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <pattern id="grid2" width="20" height="20" patternUnits="userSpaceOnUse">
+                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(30,36,51,0.5)" stroke-width="0.5"/>
+              </pattern>
+            </defs>
+            <rect width="800" height="300" fill="#111318"/>
+            <rect width="800" height="300" fill="url(#grid2)"/>
+
+            <!-- Region shapes -->
+            <!-- Mediterranean -->
+            <text x="80" y="55" fill="rgba(100,220,240,0.25)" font-family="JetBrains Mono" font-size="8" text-anchor="middle">MEDITERRANEAN</text>
+            <!-- Turkey -->
+            <path d="M160,40 L340,28 L400,52 L390,72 L310,78 L200,72 Z" fill="rgba(245,158,11,0.03)" stroke="rgba(245,158,11,0.12)" stroke-width="0.8"/>
+            <text x="280" y="58" fill="rgba(245,200,100,0.3)" font-family="JetBrains Mono" font-size="8" text-anchor="middle">TURKEY</text>
+            <!-- Israel/Jordan -->
+            <path d="M190,88 L230,82 L245,125 L200,132 Z" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.12)" stroke-width="0.8"/>
+            <text x="215" y="112" fill="rgba(255,255,255,0.35)" font-family="JetBrains Mono" font-size="7" text-anchor="middle">ISR</text>
+            <text x="260" y="112" fill="rgba(255,255,255,0.25)" font-family="JetBrains Mono" font-size="7" text-anchor="middle">JORDAN</text>
+            <!-- Iraq -->
+            <path d="M290,78 L360,70 L375,138 L345,162 L295,168 L270,130 Z" fill="rgba(59,130,246,0.03)" stroke="rgba(59,130,246,0.15)" stroke-width="0.8"/>
+            <text x="325" y="125" fill="rgba(130,170,255,0.3)" font-family="JetBrains Mono" font-size="8" text-anchor="middle">IRAQ</text>
+            <!-- Iran -->
+            <path d="M390,55 L490,48 L570,82 L585,140 L560,185 L505,198 L440,180 L375,138 Z" fill="rgba(239,68,68,0.06)" stroke="rgba(239,68,68,0.3)" stroke-width="1"/>
+            <text x="480" y="130" fill="rgba(239,68,68,0.5)" font-family="JetBrains Mono" font-size="11" text-anchor="middle" letter-spacing="3">IRAN</text>
+            <!-- Saudi -->
+            <path d="M290,168 L440,180 L475,220 L415,265 L315,270 L265,220 Z" fill="rgba(245,158,11,0.02)" stroke="rgba(245,158,11,0.1)" stroke-width="0.8"/>
+            <text x="365" y="235" fill="rgba(245,200,100,0.25)" font-family="JetBrains Mono" font-size="8" text-anchor="middle">SAUDI ARABIA</text>
+            <!-- Gulf -->
+            <text x="490" y="200" fill="rgba(100,220,240,0.3)" font-family="JetBrains Mono" font-size="7" text-anchor="middle">PERSIAN GULF</text>
+            <!-- Arabian Sea -->
+            <text x="650" y="255" fill="rgba(100,220,240,0.2)" font-family="JetBrains Mono" font-size="8" text-anchor="middle">ARABIAN SEA</text>
+
+            <!-- === SHIPS (Cyan dots) === -->
+            <!-- USS Gerald R. Ford — E. Mediterranean off Israel -->
+            <circle cx="140" cy="88" r="7" fill="rgba(6,182,212,0.12)"/>
+            <circle cx="140" cy="88" r="4" fill="#06b6d4" class="map-point"/>
+            <text x="140" y="78" fill="rgba(100,220,240,0.8)" font-family="JetBrains Mono" font-size="6" text-anchor="middle">USS FORD CSG</text>
+
+            <!-- USS Abraham Lincoln — Arabian Sea -->
+            <circle cx="650" cy="225" r="7" fill="rgba(6,182,212,0.12)"/>
+            <circle cx="650" cy="225" r="4" fill="#06b6d4" class="map-point" style="animation-delay:0.4s"/>
+            <text x="650" y="215" fill="rgba(100,220,240,0.8)" font-family="JetBrains Mono" font-size="6" text-anchor="middle">USS LINCOLN CSG</text>
+
+            <!-- Destroyers — Gulf -->
+            <circle cx="495" cy="192" r="3" fill="#06b6d4" class="map-point" style="animation-delay:0.2s"/>
+            <circle cx="515" cy="185" r="3" fill="#06b6d4" class="map-point" style="animation-delay:0.6s"/>
+            <circle cx="530" cy="195" r="3" fill="#06b6d4" class="map-point" style="animation-delay:0.9s"/>
+            <text x="515" y="208" fill="rgba(100,220,240,0.5)" font-family="JetBrains Mono" font-size="5.5" text-anchor="middle">DESTROYERS × 9</text>
+
+            <!-- LCS — Gulf -->
+            <circle cx="465" cy="198" r="2.5" fill="#06b6d4" class="map-point" style="animation-delay:1.1s"/>
+            <text x="465" y="210" fill="rgba(100,220,240,0.4)" font-family="JetBrains Mono" font-size="5" text-anchor="middle">LCS × 3</text>
+
+            <!-- === AIRCRAFT (Blue dots) === -->
+            <!-- F-22 at Ovda Israel -->
+            <circle cx="215" cy="130" r="4" fill="#3b82f6" class="map-point" style="animation-delay:0.3s"/>
+            <text x="215" y="142" fill="rgba(130,170,255,0.8)" font-family="JetBrains Mono" font-size="5.5" text-anchor="middle">F-22 × 12</text>
+
+            <!-- F-15E Jordan -->
+            <circle cx="260" cy="118" r="4" fill="#3b82f6" class="map-point" style="animation-delay:0.5s"/>
+            <text x="260" y="130" fill="rgba(130,170,255,0.8)" font-family="JetBrains Mono" font-size="5.5" text-anchor="middle">F-15E × 35+</text>
+
+            <!-- KC-135 Tankers — Al Udeid Qatar -->
+            <circle cx="470" cy="178" r="4" fill="#3b82f6" class="map-point" style="animation-delay:0.7s"/>
+            <text x="470" y="170" fill="rgba(130,170,255,0.6)" font-family="JetBrains Mono" font-size="5.5" text-anchor="middle">KC-135 × 20+</text>
+
+            <!-- Tankers at Ben Gurion -->
+            <circle cx="200" cy="100" r="3" fill="#3b82f6" class="map-point" style="animation-delay:0.9s"/>
+            <text x="200" y="94" fill="rgba(130,170,255,0.5)" font-family="JetBrains Mono" font-size="5" text-anchor="middle">TANKERS BEN GURION</text>
+
+            <!-- B-2 inbound from Diego Garcia -->
+            <circle cx="740" cy="275" r="4" fill="#3b82f6" class="map-point" style="animation-delay:0.8s"/>
+            <text x="740" y="268" fill="rgba(130,170,255,0.6)" font-family="JetBrains Mono" font-size="5.5" text-anchor="middle">B-2 INBOUND</text>
+            <path d="M740,275 Q620,230 480,130" fill="none" stroke="rgba(130,170,255,0.1)" stroke-width="0.8" stroke-dasharray="3,3"/>
+
+            <!-- AWACS -->
+            <circle cx="350" cy="148" r="3" fill="#3b82f6" class="map-point" style="animation-delay:1s"/>
+            <text x="350" y="142" fill="rgba(130,170,255,0.5)" font-family="JetBrains Mono" font-size="5" text-anchor="middle">AWACS</text>
+
+            <!-- Carrier Air Wings — sorties over Iran -->
+            <circle cx="440" cy="100" r="3" fill="#3b82f6" class="map-point" style="animation-delay:0.2s"/>
+            <circle cx="470" cy="108" r="3" fill="#3b82f6" class="map-point" style="animation-delay:0.6s"/>
+            <text x="455" y="95" fill="rgba(130,170,255,0.5)" font-family="JetBrains Mono" font-size="5" text-anchor="middle">F/A-18 SORTIES</text>
+
+            <!-- F-15E at Crete staging -->
+            <circle cx="110" cy="50" r="3" fill="#3b82f6" class="map-point" style="animation-delay:0.4s"/>
+            <text x="110" y="44" fill="rgba(130,170,255,0.5)" font-family="JetBrains Mono" font-size="5" text-anchor="middle">SOUDA BAY CRETE</text>
+
+            <!-- === VIP (Orange dots) === -->
+            <!-- AF1 — CONUS -->
+            <circle cx="30" cy="22" r="4" fill="#f97316" class="map-point" style="animation-delay:0.1s"/>
+            <text x="30" y="15" fill="rgba(249,180,100,0.9)" font-family="JetBrains Mono" font-size="6" text-anchor="middle">AF1 — FLORIDA</text>
+
+            <!-- E-6B -->
+            <circle cx="68" cy="42" r="3" fill="#f97316" class="map-point" style="animation-delay:0.5s"/>
+            <text x="68" y="36" fill="rgba(249,180,100,0.7)" font-family="JetBrains Mono" font-size="5.5" text-anchor="middle">E-6B TACAMO</text>
+          </svg>
+        </div>
+        <!-- Legend -->
+        <div style="display:flex;gap:24px;margin-top:12px;flex-wrap:wrap;justify-content:center;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="width:10px;height:10px;border-radius:50%;background:#06b6d4;display:inline-block;"></span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#a8b0c2;">🚢 Naval Vessels — Carriers, Destroyers, LCS</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="width:10px;height:10px;border-radius:50%;background:#3b82f6;display:inline-block;"></span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#a8b0c2;">✈️ Aircraft — Fighters, Bombers, Tankers, AWACS</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="width:10px;height:10px;border-radius:50%;background:#f97316;display:inline-block;"></span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#a8b0c2;">🔶 VIP / Command — Air Force One, E-6B TACAMO</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section -->
+    <div class="section-divider">
+      <div class="section-divider-line"></div>
+      <span class="section-divider-text">Intelligence & Analysis</span>
+      <div class="section-divider-line"></div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="card span-4">
+      <div class="card-header"><span class="card-title">🎯 U.S. Strike Target Categories</span></div>
+      <div class="card-body">
+        <div class="pie-row">
+          <div class="pie-chart-wrap"><canvas id="chart-targets"></canvas></div>
+          <div class="pie-legend" id="pie-legend-targets"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card span-4">
+      <div class="card-header"><span class="card-title">🚀 Force Composition — U.S. Buildup</span></div>
+      <div class="card-body">
+        <div class="pie-row">
+          <div class="pie-chart-wrap"><canvas id="chart-forces"></canvas></div>
+          <div class="pie-legend" id="pie-legend-forces"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card span-4">
+      <div class="card-header"><span class="card-title">📊 Regional Casualties (Reported)</span></div>
+      <div class="card-body">
+        <div class="pct-list">
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Iran — 201 dead, 747 injured</span><span class="pct-item-value">Per Red Crescent</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:100%;background:var(--accent-red)"></div></div>
+          </div>
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Israel — 9+ dead, 100+ injured</span><span class="pct-item-value">Beit Shemesh hit</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:30%;background:var(--accent-blue)"></div></div>
+          </div>
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">USA — 3 KIA, 5+ WIA</span><span class="pct-item-value">Kuwait base</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:12%;background:var(--accent-cyan)"></div></div>
+          </div>
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Kuwait — 1 dead, 32 wounded</span><span class="pct-item-value">Airport drone hit</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:15%;background:var(--accent-amber)"></div></div>
+          </div>
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">UAE — 3 dead (foreign nationals)</span><span class="pct-item-value">Drone strikes</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:10%;background:var(--accent-purple)"></div></div>
+          </div>
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Iraq — 2 KH fighters killed</span><span class="pct-item-value">Jurf al-Sakher</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:8%;background:var(--accent-orange)"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Oil + Escalation -->
+    <div class="card span-6">
+      <div class="card-header"><span class="card-title">🛢 Brent Crude Oil — Impact</span></div>
+      <div class="card-body">
+        <div class="chart-container tall"><canvas id="chart-oil"></canvas></div>
+        <div style="margin-top:12px;font-size:12px;color:#a8b0c2;line-height:1.5;">
+          Brent closed at <strong style="color:var(--text-primary)">$72.87/bbl</strong> on Friday Feb 28. Markets were closed on the weekend of the strikes. Rystad Energy warns prices could surge $20+/bbl when markets open Monday Mar 2 if Strait of Hormuz traffic is disrupted (15M bbl/day flow). Tanker insurance premiums up 25-50%.
+        </div>
+      </div>
+    </div>
+
+    <div class="card span-6">
+      <div class="card-header"><span class="card-title">📈 Escalation Timeline — 2026</span></div>
+      <div class="card-body">
+        <div class="chart-container tall"><canvas id="chart-escalation"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Iranian Retaliation + Iran Targets -->
+    <div class="card span-6">
+      <div class="card-header"><span class="card-title">🔥 Iranian Retaliation Summary</span></div>
+      <div class="card-body">
+        <div class="pct-list">
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Strikes on U.S. Bases (27 targeted)</span><span class="pct-item-value">Active</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:90%;background:var(--accent-red)"></div></div>
+          </div>
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Strikes on Israel (Tel Aviv, Beit Shemesh)</span><span class="pct-item-value">Active</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:85%;background:var(--accent-orange)"></div></div>
+          </div>
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Gulf State Airport Disruptions</span><span class="pct-item-value">Dubai, Kuwait shut</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:75%;background:var(--accent-amber)"></div></div>
+          </div>
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Navy 5th Fleet HQ Bahrain (targeted)</span><span class="pct-item-value">Missiles fired</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:60%;background:var(--accent-blue)"></div></div>
+          </div>
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Houthi Red Sea attacks resumed</span><span class="pct-item-value">Missiles at U.S. ships</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:55%;background:var(--accent-purple)"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card span-6">
+      <div class="card-header"><span class="card-title">💀 Key Iranian Leaders Killed</span></div>
+      <div class="card-body">
+        <div class="pct-list">
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Ayatollah Ali Khamenei — Supreme Leader</span><span class="pct-item-value" style="color:var(--accent-red)">KILLED</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:100%;background:var(--accent-red)"></div></div>
+          </div>
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Ali Shamkhani — Defense Council Sec.</span><span class="pct-item-value" style="color:var(--accent-red)">KILLED</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:100%;background:var(--accent-red)"></div></div>
+          </div>
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Mohammed Pakpour — IRGC Commander</span><span class="pct-item-value" style="color:var(--accent-red)">KILLED</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:100%;background:var(--accent-red)"></div></div>
+          </div>
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Amir Nasirzadeh — Defense Minister</span><span class="pct-item-value" style="color:var(--accent-red)">KILLED</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:100%;background:var(--accent-red)"></div></div>
+          </div>
+          <div>
+            <div class="pct-item-header"><span class="pct-item-label">Abdolrahim Mousavi — Armed Forces CoS</span><span class="pct-item-value" style="color:var(--accent-red)">KILLED</span></div>
+            <div class="pct-bar"><div class="pct-bar-fill" style="width:100%;background:var(--accent-red)"></div></div>
+          </div>
+        </div>
+        <div style="margin-top:14px;font-size:12px;color:#a8b0c2;line-height:1.5;">Israel says "majority of highest-ranking senior military officials" were eliminated. Iran formed a 3-person interim leadership council. 40 days of mourning declared.</div>
+      </div>
+    </div>
+
+    <!-- Section -->
+    <div class="section-divider">
+      <div class="section-divider-line"></div>
+      <span class="section-divider-text">Live News Feed — Multi-Source</span>
+      <div class="section-divider-line"></div>
+    </div>
+
+    <!-- News -->
+    <div class="card span-12">
+      <div class="card-header">
+        <span class="card-title">📰 Aggregated News Feed</span>
+        <span class="card-status status-active">VERIFIED SOURCES</span>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <div class="news-feed" id="news-feed"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Clock
+function updateClock(){
+  const n=new Date();
+  const utc=n.toUTCString().slice(17,25);
+  const local=n.toLocaleTimeString('en-US',{hour12:true});
+  document.getElementById('clock').textContent=`LOCAL ${local} • UTC ${utc}`;
+}
+setInterval(updateClock,1000);updateClock();
+
+// Weekly Threat Level Chart (Mon-Sun)
+// Based on real timeline: Mon Feb 23 talks ongoing, Tue-Wed buildup, Thu tensions peak, Fri strikes imminent, Sat-Sun strikes active
+(function(){
+  const ctx=document.getElementById('chart-threat-weekly').getContext('2d');
+  const levels=[55,60,68,72,78,90,85]; // Mon-Sun
+  const labels=['Mon 2/23','Tue 2/24','Wed 2/25','Thu 2/26','Fri 2/27','Sat 2/28','Sun 3/1'];
+  const barColors=levels.map(v=>{
+    if(v<=20) return '#22c55e';
+    if(v<=40) return '#3b82f6';
+    if(v<=60) return '#f59e0b';
+    if(v<=80) return '#f97316';
+    return '#ef4444';
+  });
+  const levelNames=levels.map(v=>{
+    if(v<=20) return 'LOW';
+    if(v<=40) return 'GUARDED';
+    if(v<=60) return 'ELEVATED';
+    if(v<=80) return 'HIGH';
+    return 'SEVERE';
+  });
+  new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:labels,
+      datasets:[{
+        data:levels,
+        backgroundColor:barColors,
+        borderRadius:4,
+        borderSkipped:false,
+        barPercentage:0.7,
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            label:function(c){return levelNames[c.dataIndex]+' — '+c.raw+'%';}
+          }
+        }
+      },
+      scales:{
+        y:{
+          min:0,max:100,
+          grid:{color:'rgba(30,36,51,0.5)'},
+          ticks:{
+            padding:8,
+            callback:function(v){
+              if(v===0) return 'LOW';
+              if(v===20) return 'GUARDED';
+              if(v===40) return 'ELEV';
+              if(v===60) return 'HIGH';
+              if(v===80) return 'SEVERE';
+              if(v===100) return '';
+              return '';
+            }
+          }
+        },
+        x:{grid:{display:false},ticks:{padding:4}}
+      }
+    }
+  });
+})();
+
+// Ticker — real news headlines
+const tickerData=[
+  {time:'17:47 EST',text:'Trump warns "likely more" U.S. casualties; three service members confirmed KIA in Kuwait — NBC News'},
+  {time:'17:21 EST',text:'Israel launches new wave of strikes "in the heart of Tehran" as Khamenei death confirmed — CNN'},
+  {time:'16:30 EST',text:'CENTCOM: Over 1,000 targets struck including ships, submarines, missile sites, IRGC C2 centers — Washington Post'},
+  {time:'15:45 EST',text:'Iran 3-person interim leadership council formed under Islamic law pending new supreme leader selection — NPR'},
+  {time:'14:22 EST',text:'CENTCOM confirms Jamaran-class Iranian corvette struck and sinking at port in Gulf of Oman — Military Times'},
+  {time:'13:55 EST',text:'Dubai International Airport shut down after Iranian drone strikes; Burj Al Arab hotel struck — Al Jazeera'},
+  {time:'13:30 EST',text:'8 killed, 28 hospitalized in Iranian missile strike on Beit Shemesh, 20 miles west of Jerusalem — NBC'},
+  {time:'12:45 EST',text:'Sen. Warner (D-VA): "I saw no intelligence Iran was on verge of launching preemptive strike" — CNN'},
+  {time:'12:10 EST',text:'Jordan armed forces intercepted 49 drones and ballistic missiles entering Jordanian airspace — Al Jazeera'},
+  {time:'11:30 EST',text:'B-2 stealth bombers struck Iranian ballistic missile production facilities with 2,000-lb munitions — CENTCOM'},
+  {time:'11:00 EST',text:'Iran near-total internet shutdown: connectivity at 4% of normal levels per NetBlocks monitoring — CNBC'},
+  {time:'10:15 EST',text:'FAA NOTAM: All U.S. commercial flights prohibited in Iranian, Iraqi airspace — multiple sources'},
+];
+const ticker=document.getElementById('ticker');
+const th=tickerData.map(d=>`<div class="ticker-item"><span class="ticker-time">${d.time}</span>${d.text}</div>`).join('');
+ticker.innerHTML=th+th;
+
+// Tracking — confirmed real assets
+const assets=[
+  {icon:'🚢',type:'ship',name:'USS Abraham Lincoln (CVN-72)',detail:'Carrier Strike Group — CVW-9 w/ F-35C',location:'Arabian Sea',coords:'Off coast of Oman'},
+  {icon:'🚢',type:'ship',name:'USS Gerald R. Ford (CVN-78)',detail:'World\'s largest carrier — 4x F/A-18 sqns',location:'Eastern Mediterranean',coords:'Off coast of Israel'},
+  {icon:'🚢',type:'ship',name:'9x Guided-Missile Destroyers',detail:'Arleigh Burke-class — Tomahawk + Aegis BMD',location:'Multiple — Gulf, Med, Arabian Sea',coords:'Escort & strike roles'},
+  {icon:'🚢',type:'ship',name:'3x Littoral Combat Ships',detail:'Shallow water operations',location:'Persian Gulf',coords:'Pre-deployed'},
+  {icon:'✈️',type:'aircraft',name:'12x F-22 Raptors',detail:'Air superiority — Ovda Airbase, Israel',location:'Southern Israel',coords:'First-ever U.S. offensive deploy in Israel'},
+  {icon:'✈️',type:'aircraft',name:'35+ F-15E Strike Eagles',detail:'494th EFS — RAF Lakenheath deployed',location:'Muwaffaq Salti AB, Jordan',coords:'Primary strike hub'},
+  {icon:'✈️',type:'aircraft',name:'B-2 Spirit Stealth Bombers',detail:'509th Bomb Wing — 2,000-lb bunker busters',location:'Deployed from Diego Garcia / CONUS',coords:'Deep strike missions'},
+  {icon:'✈️',type:'aircraft',name:'20+ KC-135 Tankers',detail:'Aerial refueling — surge deployment',location:'Al Udeid AB, Qatar / Ben Gurion',coords:'Refueling bridge Europe→ME'},
+  {icon:'✈️',type:'aircraft',name:'E-3 Sentry AWACS',detail:'Airborne Warning & Control',location:'Theater-wide',coords:'ISR & battle management'},
+  {icon:'✈️',type:'aircraft',name:'F/A-18 Super Hornets',detail:'Carrier Air Wings — Ford & Lincoln',location:'Active sorties over Iran',coords:'Strike & air superiority'},
+  {icon:'🔶',type:'vip',name:'Air Force One — At Mar-a-Lago',detail:'Trump overseeing from Palm Beach, FL',location:'CONUS — Florida',coords:'Per multiple reports'},
+  {icon:'🔶',type:'vip',name:'E-6B Mercury TACAMO',detail:'Airborne Nuclear Command Post',location:'Likely airborne — undisclosed',coords:'Standard wartime posture'},
+];
+document.getElementById('tracking-list').innerHTML=assets.map(a=>`
+  <div class="tracking-item">
+    <div class="tracking-item-left">
+      <div class="tracking-icon ${a.type}">${a.icon}</div>
+      <div><div class="tracking-name">${a.name}</div><div class="tracking-detail">${a.detail}</div></div>
+    </div>
+    <div class="tracking-item-right">
+      <div class="tracking-location">${a.location}</div>
+      <div class="tracking-coords">${a.coords}</div>
+    </div>
+  </div>`).join('');
+
+// News — real verified reports
+const newsItems=[
+  {source:'CENTCOM',time:'Mar 1, ~5 PM EST',headline:'Over 1,000 targets struck in Iran in 48 hours — ships, subs, missile sites, IRGC command centers',snippet:'U.S. Central Command detailed the scope of Operation Epic Fury. B-2 bombers struck ballistic missile facilities. An Iranian Jamaran-class corvette was struck and sinking.',breaking:true},
+  {source:'NPR',time:'Mar 1, 3:56 PM EST',headline:'3 U.S. service members killed, 5+ seriously wounded — first American casualties of Operation Epic Fury',snippet:'Troops killed were ground-based forces stationed in Kuwait, hit by Iranian retaliatory strikes. Several others sustained minor shrapnel injuries and returned to duty.',breaking:true},
+  {source:'CNN',time:'Mar 1, 5:21 PM EST',headline:'Trump warns "there will likely be more" U.S. casualties; says operations will continue "until objectives achieved"',snippet:'In a video on Truth Social, Trump said U.S. had sunk 9 Iranian ships and "largely destroyed" Iran\'s naval HQ. CENTCOM would not confirm the claim.',breaking:true},
+  {source:'Al Jazeera',time:'Mar 1',headline:'Iranian Red Crescent reports 201 dead and 747 injured across Iran from U.S.-Israeli strikes',snippet:'Israel\'s air force dropped 1,200+ munitions across 24 of Iran\'s 31 provinces. IRGC says it launched attacks on 27 U.S. bases and Israeli military facilities.',breaking:false},
+  {source:'Foreign Policy',time:'Mar 1, 11:28 AM',headline:'Khamenei, Shamkhani, Pakpour, Nasirzadeh, and Mousavi all confirmed killed in strikes',snippet:'Israel said a "majority of the highest-ranking senior military officials of the Iranian security leadership" were eliminated. Iran formed a 3-person interim council.',breaking:false},
+  {source:'Washington Post',time:'Mar 1',headline:'Satellite imagery reveals extensive damage: sunken vessels at naval facility, aircraft shelters destroyed',snippet:'Trump addressed the nation via video, acknowledging casualties and warning Iran to surrender or face "certain death." Combat operations continue.',breaking:false},
+  {source:'NBC News',time:'Mar 1',headline:'8 killed, 28 hospitalized in Iranian missile strike on Beit Shemesh, Israel; building collapsed',snippet:'At least 40 buildings in Tel Aviv damaged in Iranian strikes Saturday per Haaretz. Iran also struck Dubai\'s Burj Al Arab hotel and airports across the Gulf.',breaking:false},
+  {source:'CNBC',time:'Mar 1',headline:'Trump tells CNBC operations "ahead of schedule" — calls Iran "one of the most violent regimes in history"',snippet:'Oil markets closed for weekend; Brent at $72.87 on Friday. Rystad Energy warns $20+/bbl spike possible Monday. Strait of Hormuz traffic disrupted.',breaking:false},
+  {source:'CNN',time:'Mar 1',headline:'Sen. Warner: "I saw no intelligence" Iran was planning preemptive strike, contradicting White House justification',snippet:'Warner, top Democrat on Senate Intelligence Committee, directly disputed administration\'s stated reason for strikes. War Powers Resolution push underway.',breaking:false},
+  {source:'Al Jazeera',time:'Mar 1',headline:'Iran Foreign Ministry says 158 students killed at elementary school in Minab, southern Iran',snippet:'Iran blames Israel for the school strike. Israeli military says it is "not aware of its forces operating in the area." CENTCOM says it is "looking into" reports.',breaking:false},
+  {source:'UN News',time:'Feb 28',headline:'Secretary-General Guterres: strikes "squandered an opportunity for diplomacy" during ongoing Oman-mediated talks',snippet:'UN Security Council emergency session held. China called strikes "brazen." Russia\'s Putin called Khamenei killing a "cynical murder." Oman says door to diplomacy remains open.',breaking:false},
+  {source:'Military Times',time:'Mar 1',headline:'USS Gerald R. Ford and Abraham Lincoln form largest dual-carrier deployment since Operation Iraqi Freedom 2003',snippet:'16+ warships, 10,000+ sailors deployed. F-22s at Ovda Israel, F-15Es in Jordan, 20+ tankers at Al Udeid. CSIS calls it "largest armada since 2003."',breaking:false},
+];
+document.getElementById('news-feed').innerHTML=newsItems.map(n=>`
+  <div class="news-item ${n.breaking?'breaking':''}">
+    <div class="news-item-header">
+      <span class="news-source">${n.source}</span>
+      <span class="news-time">${n.time}</span>
+      ${n.breaking?'<span class="news-breaking-tag">BREAKING</span>':''}
+    </div>
+    <div class="news-headline">${n.headline}</div>
+    <div class="news-snippet">${n.snippet}</div>
+  </div>`).join('');
+
+// Charts
+Chart.defaults.color='#8a93a8';
+Chart.defaults.borderColor='rgba(30,36,51,0.8)';
+Chart.defaults.font.family="'JetBrains Mono',monospace";
+Chart.defaults.font.size=10;
+
+// Target distribution
+const targetData=[
+  {label:'Nuclear/Missile Sites',value:30,color:'#ef4444'},
+  {label:'IRGC C2 & Comms',value:20,color:'#f97316'},
+  {label:'Naval Bases & Ships',value:18,color:'#06b6d4'},
+  {label:'Air Defenses & Radar',value:15,color:'#f59e0b'},
+  {label:'Airfields',value:10,color:'#3b82f6'},
+  {label:'Leadership Compounds',value:7,color:'#8b5cf6'},
+];
+new Chart(document.getElementById('chart-targets').getContext('2d'),{
+  type:'doughnut',data:{labels:targetData.map(d=>d.label),datasets:[{data:targetData.map(d=>d.value),backgroundColor:targetData.map(d=>d.color),borderWidth:0,spacing:2}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:false}}}
+});
+document.getElementById('pie-legend-targets').innerHTML=targetData.map(d=>`<div class="pie-legend-item"><div class="pie-legend-color" style="background:${d.color}"></div>${d.label}<span class="pie-legend-pct">${d.value}%</span></div>`).join('');
+
+// Force composition
+const forceData=[
+  {label:'U.S. Navy (2 CSGs, 16+ ships)',value:35,color:'#06b6d4'},
+  {label:'U.S. Air Force (F-22, F-15E, B-2)',value:30,color:'#3b82f6'},
+  {label:'Israeli Air Force (joint ops)',value:20,color:'#f59e0b'},
+  {label:'Carrier Air Wings (F/A-18, F-35C)',value:10,color:'#8b5cf6'},
+  {label:'SOF / Intelligence',value:5,color:'#22c55e'},
+];
+new Chart(document.getElementById('chart-forces').getContext('2d'),{
+  type:'doughnut',data:{labels:forceData.map(d=>d.label),datasets:[{data:forceData.map(d=>d.value),backgroundColor:forceData.map(d=>d.color),borderWidth:0,spacing:2}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:false}}}
+});
+document.getElementById('pie-legend-forces').innerHTML=forceData.map(d=>`<div class="pie-legend-item"><div class="pie-legend-color" style="background:${d.color}"></div>${d.label}<span class="pie-legend-pct">${d.value}%</span></div>`).join('');
+
+// Oil chart — real price data
+new Chart(document.getElementById('chart-oil').getContext('2d'),{
+  type:'line',data:{
+    labels:['Jan 5','Jan 15','Jan 25','Feb 6','Feb 9','Feb 10','Feb 14','Feb 17','Feb 20','Feb 22','Feb 24','Feb 26','Feb 27','Feb 28'],
+    datasets:[{label:'Brent Crude $/bbl',
+      data:[75.5,74.2,71.8,68.0,67.4,68.0,69.3,70.5,71.2,72.0,73.5,74.8,75.2,72.87],
+      borderColor:'#f59e0b',backgroundColor:(ctx)=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,260);g.addColorStop(0,'rgba(245,158,11,0.15)');g.addColorStop(1,'rgba(245,158,11,0)');return g;},
+      fill:true,tension:0.35,pointRadius:2,pointHitRadius:10,borderWidth:2}]
+  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+    scales:{y:{grid:{color:'rgba(30,36,51,0.5)'},ticks:{callback:v=>'$'+v,padding:8}},x:{grid:{display:false},ticks:{maxTicksLimit:8,padding:4}}}}
+});
+
+// Escalation timeline
+new Chart(document.getElementById('chart-escalation').getContext('2d'),{
+  type:'line',data:{
+    labels:['Jan 2','Jan 8','Jan 13','Jan 15','Jan 25','Feb 6','Feb 14','Feb 17','Feb 19','Feb 22','Feb 24','Feb 26','Feb 27','Feb 28','Mar 1'],
+    datasets:[
+      {label:'U.S./Israel Actions',data:[15,18,30,35,42,45,55,60,72,75,80,88,92,100,100],borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.05)',fill:true,tension:0.4,pointRadius:2,borderWidth:2},
+      {label:'Iranian Actions',data:[20,35,30,25,20,18,20,22,25,28,30,35,40,80,90],borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,0.05)',fill:true,tension:0.4,pointRadius:2,borderWidth:2}
+    ]
+  },options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'top',align:'end',labels:{boxWidth:12,padding:15,font:{size:10}}}},
+    scales:{y:{grid:{color:'rgba(30,36,51,0.5)'},ticks:{padding:8},title:{display:true,text:'Escalation Index',font:{size:9}}},x:{grid:{display:false},ticks:{maxTicksLimit:10,padding:4}}}
+  }
+});
+</script>
+</body>
+</html>
